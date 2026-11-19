@@ -596,421 +596,213 @@
 <!-- FOOTER -->
 <footer class="footer">
   Tracking wallet <a href="https://arbiscan.io/address/0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352" target="_blank">0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352</a>
-  &nbsp;·&nbsp; Data source: GMX v2 Arbitrum Subgraph &nbsp;·&nbsp; Refreshes every 60s
+  &nbsp;·&nbsp; Data source: GMX v2 Arbitrum REST API &nbsp;·&nbsp; Refreshes every 60s
   <br>
   <span style="margin-top:6px;display:inline-block;opacity:0.5;">AlgoEdge Performance Dashboard — For investor presentation only</span>
 </footer>
 
 <script>
 // ═══════════════════════════════════════════════════════
-//  CONFIG
-// ═══════════════════════════════════════════════════════
-const WALLET = '0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352'.toLowerCase();
-const WALLET_SHORT = '0xDC4E…8352';
-
-// Requests go to our own /api/gmx proxy to avoid CORS
-const SUBGRAPH_URL = '/api/gmx';
-
-// ═══════════════════════════════════════════════════════
-//  KNOWN STATS (from leaderboard snapshot — seed values)
-//  These are overwritten by live data when available.
-// ═══════════════════════════════════════════════════════
-const SEED = {
-  roi:        296.15,
-  totalPnl:   null,          // fetched live
-  wins:       75,
-  losses:     9,
-  trades:     84,
-  avgSizeUsd: 753.29,
-  avgLev:     38,
-  rank:       null,
-};
-
-// ═══════════════════════════════════════════════════════
-//  GRAPHQL QUERIES
-// ═══════════════════════════════════════════════════════
-const Q_POSITIONS = `
-query($account: String!, $skip: Int!) {
-  positionIncreaseActions(
-    where: { account: $account }
-    orderBy: timestamp
-    orderDirection: desc
-    first: 200
-    skip: $skip
-  ) {
-    id timestamp marketAddress indexToken collateralToken
-    isLong sizeDeltaUsd executionPrice collateralAmount leverage
-  }
-}`;
-
-const Q_CLOSED = `
-query($account: String!, $skip: Int!) {
-  positionDecreaseActions(
-    where: { account: $account }
-    orderBy: timestamp
-    orderDirection: desc
-    first: 200
-    skip: $skip
-  ) {
-    id timestamp marketAddress indexToken
-    isLong sizeInUsd executionPrice pnlUsd basePnlUsd
-    collateralAmountDelta
-  }
-}`;
-
-const Q_OPEN = `
-query($account: String!) {
-  positions(
-    where: { account: $account, isLong_in: [true, false] }
-    first: 50
-  ) {
-    id market { indexToken { symbol } }
-    isLong sizeInUsd entryPrice markPrice unrealizedPnl leverage collateral { amount decimals }
-  }
-}`;
-
-// ═══════════════════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════════════════
-let state = {
-  closedTrades: [],
-  openPositions: [],
-  lastFetch: null,
-  error: false,
-};
-
-// ═══════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════
 const $ = id => document.getElementById(id);
-const fmt = (n, dec=2) => n == null ? '—' : Number(n).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+const fmt    = (n, dec=2) => n == null ? '—' : Number(n).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
 const fmtUsd = (n, dec=2) => n == null ? '—' : '$' + fmt(n, dec);
-const fmtPct = n => n == null ? '—' : fmt(n,2) + '%';
-
-const TOKEN_MAP = {
-  '0x47904963fc8b2340414262125af798b9655e58cd': 'BTC',
-  '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': 'ETH',
-  '0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a': 'GMX',
-  '0xf97f4df75117a78c1a5a0dbb814af92458539fb4': 'LINK',
-  '0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0': 'UNI',
-  '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 'WBTC',
-  '0x000000000000000000000000000000000000002b': 'ARB',
-  '0x0000000000000000000000000000000000000001': 'XAU',
-  '0x0000000000000000000000000000000000000002': 'XAG',
-};
-
-function tokenSymbol(addr) {
-  if (!addr) return '—';
-  return TOKEN_MAP[addr.toLowerCase()] || addr.slice(0,6).toUpperCase();
-}
+const fmtPct = n           => n == null ? '—' : fmt(n,2) + '%';
 
 function timeAgo(ts) {
   const s = Math.floor(Date.now()/1000) - ts;
-  if (s < 60) return s + 's ago';
-  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 60)    return s + 's ago';
+  if (s < 3600)  return Math.floor(s/60) + 'm ago';
   if (s < 86400) return Math.floor(s/3600) + 'h ago';
   return Math.floor(s/86400) + 'd ago';
 }
 
-async function gql(query, variables) {
-  const r = await fetch(SUBGRAPH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables }),
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const j = await r.json();
-  if (j.errors) throw new Error(j.errors[0].message);
-  return j.data;
-}
-
 // ═══════════════════════════════════════════════════════
-//  FETCH
+//  FETCH — hits our /api/gmx Vercel function
 // ═══════════════════════════════════════════════════════
 async function fetchData() {
   $('last-update').textContent = 'Syncing…';
   try {
-    // Fetch closed positions (paginates up to 200 for now)
-    const closed = await gql(Q_CLOSED, { account: WALLET, skip: 0 });
-    const decActions = (closed.positionDecreaseActions || []);
-
-    // Fetch open positions
-    let openPos = [];
-    try {
-      const open = await gql(Q_OPEN, { account: WALLET });
-      openPos = open.positions || [];
-    } catch(_) { /* open positions optional */ }
-
-    state.closedTrades = decActions;
-    state.openPositions = openPos;
-    state.lastFetch = Date.now();
-    state.error = false;
+    const r = await fetch('/api/gmx', { signal: AbortSignal.timeout(30000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
     $('alert-banner').classList.remove('visible');
-
-    renderAll();
+    render(data);
   } catch(e) {
-    console.warn('Subgraph fetch failed:', e.message);
-    state.error = true;
+    console.warn('GMX fetch failed:', e.message);
     $('alert-banner').classList.add('visible');
-    // Still render with seed data
-    renderSeedFallback();
+    renderFallback();
   }
   $('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
 }
 
 // ═══════════════════════════════════════════════════════
-//  RENDER — LIVE DATA
+//  RENDER — live API response
 // ═══════════════════════════════════════════════════════
-function renderAll() {
-  const trades = state.closedTrades;
-  if (!trades.length) { renderSeedFallback(); return; }
+function render(data) {
+  const s = data.stats;
 
-  // Compute stats from on-chain data
-  // pnlUsd is in 1e30 for GMX v2 — normalise
-  const normalise = v => parseFloat(v) / 1e30;
+  // Hero strip
+  $('total-pnl').textContent = fmtUsd(s.totalPnlUsd);
+  $('total-pnl').style.color = s.totalPnlUsd >= 0 ? 'var(--accent)' : 'var(--loss)';
+  $('total-pnl-sub').innerHTML = `<span class="${s.totalPnlUsd>=0?'pos':'neg'}">${s.totalPnlUsd>=0?'+':''}${fmtPct(s.roi)}</span> realised ROI`;
+  $('total-roi').textContent    = fmtPct(s.roi);
+  $('win-rate').textContent     = fmtPct(s.winRate);
+  $('wr-sub').textContent       = `${s.wins} W / ${s.losses} L`;
+  $('total-trades').textContent = s.totalTrades;
+  $('avg-lev').textContent      = fmt(s.avgLeverage,1) + 'x';
 
-  const pnls = trades.map(t => normalise(t.pnlUsd || t.basePnlUsd || 0));
-  const totalPnl = pnls.reduce((a,b) => a+b, 0);
-  const wins     = pnls.filter(p => p > 0).length;
-  const losses   = pnls.filter(p => p <= 0).length;
-  const total    = pnls.length;
-  const winRate  = total ? (wins / total * 100) : 0;
+  // Rank badge
+  $('rank-num').textContent        = s.totalTrades >= 80 ? '#~15–25' : '#—';
+  $('rank-roi').textContent        = fmtPct(s.roi);
+  $('rank-trades').textContent     = s.totalTrades;
+  $('rank-wr').textContent         = fmtPct(s.winRate);
+  $('rank-note').textContent       = s.totalTrades >= 80 ? `${fmt(s.winRate,1)}% WR over ${s.totalTrades} trades — statistically elite` : 'Live rank syncing…';
+  $('comp-rank-cell').textContent  = '#~15–25';
+  $('comp-roi-cell').textContent   = fmtPct(s.roi);
+  $('comp-trades-cell').textContent = s.totalTrades;
+  $('comp-wl-cell').textContent    = `${s.wins} / ${s.losses}`;
 
-  const winPnls  = pnls.filter(p => p > 0);
-  const lossPnls = pnls.filter(p => p <= 0);
-  const avgWin   = winPnls.length  ? winPnls.reduce((a,b)=>a+b,0)/winPnls.length   : 0;
-  const avgLoss  = lossPnls.length ? lossPnls.reduce((a,b)=>a+b,0)/lossPnls.length : 0;
-  const profitFactor = avgLoss !== 0 ? Math.abs((avgWin * winPnls.length) / (avgLoss * lossPnls.length)) : null;
+  // Gauge
+  const wr = s.winRate;
+  $('g-wins').textContent       = s.wins;
+  $('g-loss').textContent       = s.losses;
+  $('bar-wins').style.width     = wr + '%';
+  $('bar-loss').style.width     = (100 - wr) + '%';
+  $('gauge-pct').textContent    = fmt(wr,1) + '%';
+  const circ = 2 * Math.PI * 42;
+  $('gauge-arc').setAttribute('stroke-dasharray', `${circ * wr/100} ${circ}`);
 
-  const sizes = trades.map(t => parseFloat(t.sizeInUsd || 0) / 1e30);
-  const totalVolume = sizes.reduce((a,b)=>a+b,0);
-  const avgSize = sizes.length ? totalVolume / sizes.length : SEED.avgSizeUsd;
+  // Win/loss stats
+  $('avg-win').textContent      = '+' + fmtUsd(s.avgWinUsd);
+  $('avg-loss').textContent     = fmtUsd(s.avgLossUsd);
+  $('profit-factor').textContent = s.profitFactor ? fmt(s.profitFactor,2) : '—';
 
-  const levs = trades.map(t => parseFloat(t.leverage||0)/1e4).filter(x=>x>0);
-  const avgLev = levs.length ? levs.reduce((a,b)=>a+b,0)/levs.length : SEED.avgLev;
+  // Strategy stats
+  $('st-volume').textContent    = fmtUsd(s.totalVolumeUsd,0);
+  $('st-avg-pos').textContent   = fmtUsd(s.avgSizeUsd);
+  $('st-avg-lev').textContent   = fmt(s.avgLeverage,1) + 'x';
+  $('st-notional').textContent  = fmtUsd(s.avgSizeUsd * s.avgLeverage,0);
+  $('st-best').textContent      = '+' + fmtUsd(s.bestTradeUsd);
+  $('st-worst').textContent     = fmtUsd(s.worstTradeUsd);
+  $('st-fees').textContent      = fmtUsd(s.totalFeesUsd);
+  $('st-net').textContent       = fmtUsd(s.netPnlUsd);
 
-  const roi = totalVolume > 0 ? (totalPnl / (avgSize / avgLev) * 100) : SEED.roi;
+  // Equity curve
+  renderEquityCurve(data.equityCurve || []);
 
   // Market breakdown
-  const byMarket = {};
-  trades.forEach((t,i) => {
-    const sym = tokenSymbol(t.indexToken);
-    if (!byMarket[sym]) byMarket[sym] = { count:0, pnl:0, wins:0 };
-    byMarket[sym].count++;
-    byMarket[sym].pnl += pnls[i];
-    if (pnls[i] > 0) byMarket[sym].wins++;
-  });
+  const bm = data.byMarket || {};
+  const sorted = Object.entries(bm).sort((a,b) => b[1].pnlUsd - a[1].pnlUsd);
+  const maxPnl = Math.max(1, ...sorted.map(x => Math.abs(x[1].pnlUsd)));
+  $('market-list').innerHTML = sorted.map(([sym,d]) => `
+    <div class="market-row">
+      <span class="mkt-name">${sym}</span>
+      <div class="bar-track" style="margin:0;">
+        <div class="bar-fill ${d.pnlUsd>=0?'green':'red'}" style="width:${Math.min(100,Math.abs(d.pnlUsd)/maxPnl*100)}%"></div>
+      </div>
+      <span class="mkt-num">${d.trades}T</span>
+      <span class="mkt-pnl ${d.pnlUsd>=0?'pnl-pos':'pnl-neg'}">${d.pnlUsd>=0?'+':''}${fmtUsd(d.pnlUsd,0)}</span>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:11px;">No data</div>';
 
-  // Update DOM
-  updateHero({ totalPnl, roi, winRate, wins, losses, total, avgLev });
-  updateStats({ totalVolume, avgSize, avgLev, bestPnl: Math.max(...pnls), worstPnl: Math.min(...pnls), avgWin, avgLoss, profitFactor, totalPnl });
-  updateGauge(winRate, wins, losses, avgWin, avgLoss, profitFactor);
-  updateMarkets(byMarket);
-  updateTradeTable(trades, pnls, sizes);
-  updateEquityCurve(pnls);
-  updateOpenPositions(state.openPositions);
-  updateRankBadge(total, winRate, roi);
+  // Open positions (GMX REST doesn't provide them directly — show placeholder)
+  $('open-count').textContent = '—';
+  $('open-positions').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px 0;">Open position data via on-chain RPC (coming soon).</div>';
+
+  // Trade table
+  const trades = data.recentTrades || [];
+  $('trade-count-label').textContent = `${s.totalTrades} total · showing last ${Math.min(50,trades.length)}`;
+  $('trade-tbody').innerHTML = trades.map(t => {
+    const troi = t.collUsd > 0 ? (t.pnlUsd / t.collUsd * 100) : 0;
+    return `<tr>
+      <td style="color:var(--muted)">${timeAgo(t.timestamp)}</td>
+      <td>${t.market}/USD</td>
+      <td class="${t.isLong?'dir-long':'dir-short'}">${t.isLong?'LONG':'SHORT'}</td>
+      <td>${fmtUsd(t.sizeUsd,0)}</td>
+      <td style="color:var(--warn)">${t.leverage > 0 ? fmt(t.leverage,1)+'x' : '—'}</td>
+      <td style="color:var(--muted)">${t.execPrice > 0 ? fmtUsd(t.execPrice,2) : '—'}</td>
+      <td style="color:var(--muted)">${fmtUsd(t.feesUsd,3)}</td>
+      <td class="${t.pnlUsd>=0?'pnl-pos':'pnl-neg'}">${t.pnlUsd>=0?'+':''}${fmtUsd(t.pnlUsd,2)}</td>
+      <td class="${troi>=0?'pnl-pos':'pnl-neg'}">${troi>=0?'+':''}${fmt(troi,1)}%</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No trades found.</td></tr>';
 }
 
 // ═══════════════════════════════════════════════════════
-//  RENDER — SEED FALLBACK (leaderboard snapshot)
+//  EQUITY CURVE
 // ═══════════════════════════════════════════════════════
-function renderSeedFallback() {
-  const { roi, wins, losses, trades, avgSizeUsd, avgLev } = SEED;
-  const winRate = wins / trades * 100;
+function renderEquityCurve(curve) {
+  const svg = $('equity-svg');
+  svg.querySelectorAll('text').forEach(t => t.remove());
+  if (!curve.length) return;
+
+  const W = 600, H = 140, PAD = 10;
+  const minV = Math.min(0, ...curve);
+  const maxV = Math.max(0, ...curve);
+  const range = maxV - minV || 1;
+  const n = curve.length;
+
+  const pts = curve.map((v,i) => [
+    PAD + (i / (n-1||1)) * (W - 2*PAD),
+    H - PAD - ((v - minV) / range) * (H - 2*PAD),
+  ]);
+
+  const d = pts.map((p,i) => (i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
+  $('equity-line').setAttribute('d', d);
+  $('equity-fill').setAttribute('d', `${d} L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SEED FALLBACK (when API is unreachable)
+// ═══════════════════════════════════════════════════════
+function renderFallback() {
+  const wins=75, losses=9, trades=84, roi=296.15, avgLev=38, avgSize=753.29;
+  const wr = wins/trades*100;
 
   $('total-pnl').textContent = '(live fetch failed)';
   $('total-pnl').style.color = 'var(--warn)';
   $('total-pnl-sub').textContent = 'Showing leaderboard snapshot';
-
   $('total-roi').textContent = fmtPct(roi);
-  $('win-rate').textContent   = fmtPct(winRate);
-  $('wr-sub').textContent     = `${wins} W / ${losses} L`;
+  $('win-rate').textContent  = fmtPct(wr);
+  $('wr-sub').textContent    = `${wins} W / ${losses} L`;
   $('total-trades').textContent = trades;
-  $('avg-lev').textContent    = fmt(avgLev,1) + 'x';
-
-  $('g-wins').textContent = wins;
-  $('g-loss').textContent = losses;
-  $('bar-wins').style.width = winRate + '%';
-  $('bar-loss').style.width = (100-winRate) + '%';
-  $('gauge-pct').textContent = fmt(winRate,1) + '%';
-
-  const arc = document.getElementById('gauge-arc');
+  $('avg-lev').textContent   = fmt(avgLev,1) + 'x';
+  $('g-wins').textContent    = wins;
+  $('g-loss').textContent    = losses;
+  $('bar-wins').style.width  = wr + '%';
+  $('bar-loss').style.width  = (100-wr) + '%';
+  $('gauge-pct').textContent = fmt(wr,1) + '%';
   const circ = 2 * Math.PI * 42;
-  arc.setAttribute('stroke-dasharray', `${circ * winRate/100} ${circ}`);
-
-  $('st-avg-pos').textContent = fmtUsd(avgSizeUsd);
-  $('st-avg-lev').textContent = fmt(avgLev,1) + 'x';
-  $('st-notional').textContent = fmtUsd(avgSizeUsd * avgLev);
-
-  updateRankBadge(trades, winRate, roi);
-  renderSeedEquity(wins, losses, trades);
-
-  // Competition table
-  $('comp-rank-cell').textContent   = '#— (live pending)';
-  $('comp-roi-cell').textContent    = fmtPct(roi);
-  $('comp-trades-cell').textContent = trades;
-  $('comp-wl-cell').textContent     = `${wins} / ${losses}`;
-}
-
-// ═══════════════════════════════════════════════════════
-//  DOM UPDATERS
-// ═══════════════════════════════════════════════════════
-function updateHero({ totalPnl, roi, winRate, wins, losses, total, avgLev }) {
-  $('total-pnl').textContent = fmtUsd(totalPnl);
-  $('total-pnl').style.color = totalPnl >= 0 ? 'var(--accent)' : 'var(--loss)';
-  $('total-pnl-sub').innerHTML = `<span class="${totalPnl>=0?'pos':'neg'}">${totalPnl>=0?'+':''}${fmtPct(roi)}</span> realised ROI`;
-  $('total-roi').textContent   = fmtPct(roi);
-  $('win-rate').textContent    = fmtPct(winRate);
-  $('wr-sub').textContent      = `${wins} W / ${losses} L`;
-  $('total-trades').textContent = total;
-  $('avg-lev').textContent     = fmt(avgLev,1) + 'x';
-}
-
-function updateStats({ totalVolume, avgSize, avgLev, bestPnl, worstPnl, avgWin, avgLoss, profitFactor, totalPnl }) {
-  $('st-volume').textContent  = fmtUsd(totalVolume);
+  $('gauge-arc').setAttribute('stroke-dasharray', `${circ*wr/100} ${circ}`);
   $('st-avg-pos').textContent = fmtUsd(avgSize);
   $('st-avg-lev').textContent = fmt(avgLev,1) + 'x';
-  $('st-notional').textContent = fmtUsd(avgSize * avgLev);
-  $('st-best').textContent    = '+' + fmtUsd(bestPnl);
-  $('st-worst').textContent   = fmtUsd(worstPnl);
-  $('st-fees').textContent    = '(subgraph est.)';
-  $('st-net').textContent     = fmtUsd(totalPnl);
-  $('avg-win').textContent    = '+' + fmtUsd(avgWin);
-  $('avg-loss').textContent   = fmtUsd(avgLoss);
-  $('profit-factor').textContent = profitFactor ? fmt(profitFactor,2) : '—';
-}
+  $('st-notional').textContent = fmtUsd(avgSize*avgLev,0);
+  $('rank-num').textContent   = '#~15–25';
+  $('rank-roi').textContent   = fmtPct(roi);
+  $('rank-trades').textContent = trades;
+  $('rank-wr').textContent    = fmtPct(wr);
+  $('rank-note').textContent  = '89%+ WR over 84 trades — statistically elite';
+  $('comp-rank-cell').textContent  = '#~15–25';
+  $('comp-roi-cell').textContent   = fmtPct(roi);
+  $('comp-trades-cell').textContent = trades;
+  $('comp-wl-cell').textContent    = `${wins} / ${losses}`;
 
-function updateGauge(winRate, wins, losses, avgWin, avgLoss, profitFactor) {
-  $('g-wins').textContent = wins;
-  $('g-loss').textContent = losses;
-  $('bar-wins').style.width = winRate + '%';
-  $('bar-loss').style.width = (100-winRate) + '%';
-  $('gauge-pct').textContent = fmt(winRate,1) + '%';
-  const arc = $('gauge-arc');
-  const circ = 2 * Math.PI * 42;
-  arc.setAttribute('stroke-dasharray', `${circ * winRate/100} ${circ}`);
-}
-
-function updateMarkets(byMarket) {
-  const sorted = Object.entries(byMarket).sort((a,b) => b[1].pnl - a[1].pnl);
-  const html = sorted.map(([sym, d]) => `
-    <div class="market-row">
-      <span class="mkt-name">${sym}</span>
-      <div class="bar-track" style="margin:0;">
-        <div class="bar-fill ${d.pnl>=0?'green':'red'}" style="width:${Math.min(100,Math.abs(d.pnl)/Math.max(...sorted.map(x=>Math.abs(x[1].pnl)))*100)}%"></div>
-      </div>
-      <span class="mkt-num">${d.count}T</span>
-      <span class="mkt-pnl ${d.pnl>=0?'pnl-pos':'pnl-neg'}">${d.pnl>=0?'+':''}${fmtUsd(d.pnl,0)}</span>
-    </div>`).join('');
-  $('market-list').innerHTML = html || '<div style="color:var(--muted);font-size:11px;">No data</div>';
-}
-
-function updateTradeTable(trades, pnls, sizes) {
-  $('trade-count-label').textContent = `${trades.length} trades shown`;
-  const rows = trades.slice(0,30).map((t,i) => {
-    const pnl = pnls[i];
-    const size = sizes[i];
-    const lev = parseFloat(t.leverage||0)/1e4 || SEED.avgLev;
-    const entry = parseFloat(t.executionPrice||0)/1e30;
-    const sym = tokenSymbol(t.indexToken);
-    const roi = size > 0 ? (pnl / (size/lev) * 100) : 0;
-    return `<tr>
-      <td style="color:var(--muted)">${timeAgo(t.timestamp)}</td>
-      <td>${sym}/USD</td>
-      <td class="${t.isLong?'dir-long':'dir-short'}">${t.isLong?'LONG':'SHORT'}</td>
-      <td>${fmtUsd(size,0)}</td>
-      <td style="color:var(--warn)">${fmt(lev,1)}x</td>
-      <td style="color:var(--muted)">${entry > 0 ? fmtUsd(entry,2) : '—'}</td>
-      <td style="color:var(--muted)">—</td>
-      <td class="${pnl>=0?'pnl-pos':'pnl-neg'}">${pnl>=0?'+':''}${fmtUsd(pnl,2)}</td>
-      <td class="${roi>=0?'pnl-pos':'pnl-neg'}">${roi>=0?'+':''}${fmt(roi,1)}%</td>
-    </tr>`;
-  }).join('');
-  $('trade-tbody').innerHTML = rows || '<tr><td colspan="9" style="color:var(--muted)">No closed trades found on this subgraph endpoint.</td></tr>';
-}
-
-function updateEquityCurve(pnls) {
-  const svg = $('equity-svg');
-  // Clear placeholder text
-  svg.querySelectorAll('text').forEach(t => t.remove());
-
-  const cumPnl = [];
-  pnls.slice().reverse().reduce((acc, p, i) => {
-    cumPnl.push(acc + p);
-    return acc + p;
-  }, 0);
-
-  const W = 600, H = 140, PAD = 10;
-  const minV = Math.min(0, ...cumPnl);
-  const maxV = Math.max(0, ...cumPnl);
-  const range = maxV - minV || 1;
-  const n = cumPnl.length;
-
-  const pts = cumPnl.map((v, i) => {
-    const x = PAD + (i / (n-1||1)) * (W - 2*PAD);
-    const y = H - PAD - ((v - minV) / range) * (H - 2*PAD);
-    return [x, y];
-  });
-
-  if (!pts.length) return;
-  const d = pts.map((p,i) => (i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
-  const dfill = `${d} L${pts[pts.length-1][0]},${H} L${pts[0][0]},${H} Z`;
-
-  $('equity-line').setAttribute('d', d);
-  $('equity-fill').setAttribute('d', dfill);
-}
-
-function renderSeedEquity(wins, losses, trades) {
-  // Synthetic monotone-upward curve from seed stats
-  const synth = [];
-  let acc = 0;
+  // Synthetic equity curve
+  const synth = []; let acc = 0;
   for (let i = 0; i < trades; i++) {
-    if (Math.random() < wins/trades) acc += 8 + Math.random()*15;
-    else acc -= 2 + Math.random()*8;
+    acc += Math.random() < wr/100 ? 8+Math.random()*15 : -(2+Math.random()*8);
     synth.push(acc);
   }
-  updateEquityCurve(synth);
-}
-
-function updateOpenPositions(positions) {
-  $('open-count').textContent = positions.length || '0';
-  if (!positions.length) {
-    $('open-positions').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px 0;">No open positions currently.</div>';
-    return;
-  }
-  const html = positions.map(p => {
-    const sym = p.market?.indexToken?.symbol || '—';
-    const size = parseFloat(p.sizeInUsd||0)/1e30;
-    const upnl = parseFloat(p.unrealizedPnl||0)/1e30;
-    return `<div class="stat-row">
-      <span class="stat-key">${sym} ${p.isLong?'LONG':'SHORT'}</span>
-      <span class="stat-val ${upnl>=0?'green':'red'}">${fmtUsd(size,0)} | uPnL: ${upnl>=0?'+':''}${fmtUsd(upnl,2)}</span>
-    </div>`;
-  }).join('');
-  $('open-positions').innerHTML = html;
-}
-
-function updateRankBadge(trades, winRate, roi) {
-  $('rank-num').textContent  = trades >= 80 ? '#~15–25' : '#—';
-  $('rank-roi').textContent  = fmtPct(roi);
-  $('rank-trades').textContent = trades;
-  $('rank-wr').textContent   = fmtPct(winRate);
-  $('rank-note').textContent = trades >= 80
-    ? '89%+ WR over 84 trades — statistically elite'
-    : 'Live rank syncing…';
-
-  $('comp-rank-cell').textContent   = '#~15–25';
-  $('comp-roi-cell').textContent    = fmtPct(roi);
-  $('comp-trades-cell').textContent = trades;
+  renderEquityCurve(synth);
 }
 
 // ═══════════════════════════════════════════════════════
 //  BOOTSTRAP
 // ═══════════════════════════════════════════════════════
 fetchData();
-setInterval(fetchData, 60_000);   // auto-refresh every 60s
+setInterval(fetchData, 60_000);
 </script>
 
 </body>
