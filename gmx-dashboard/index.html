@@ -608,9 +608,8 @@
 const WALLET = '0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352'.toLowerCase();
 const WALLET_SHORT = '0xDC4E…8352';
 
-// GMX v2 Arbitrum subgraph (The Graph hosted / decentralised)
-const SUBGRAPH_URL =
-  'https://subgraph.satsuma-prod.com/3b2ced13c8d9/gmx/synthetics-arbitrum-stats/api';
+// Requests go to our own /api/gmx proxy to avoid CORS
+const SUBGRAPH_URL = '/api/gmx';
 
 // ═══════════════════════════════════════════════════════
 //  KNOWN STATS (from leaderboard snapshot — seed values)
