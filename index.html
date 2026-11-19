@@ -8,15 +8,15 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg:        oklch(10% 0.01 240);
-    --surface:   oklch(14% 0.015 240);
-    --surface2:  oklch(18% 0.015 240);
-    --border:    oklch(25% 0.02 240);
-    --text:      oklch(92% 0.005 240);
-    --muted:     oklch(55% 0.01 240);
-    --accent:    oklch(72% 0.19 145);   /* sharp green */
-    --warn:      oklch(70% 0.18 30);    /* amber */
-    --loss:      oklch(65% 0.20 15);    /* red */
+    --bg:        rgb(22, 23, 26);
+    --surface:   rgb(32, 33, 37);
+    --surface2:  rgb(41, 43, 48);
+    --border:    rgb(58, 61, 68);
+    --text:      rgb(230, 231, 233);
+    --muted:     rgb(118, 128, 141);
+    --accent:    rgb(74, 185, 85);      /* sharp green */
+    --warn:      rgb(204, 153, 51);     /* amber */
+    --loss:      rgb(210, 80, 65);      /* red */
     --mono: 'DM Mono', monospace;
     --sans: 'Syne', sans-serif;
   }
@@ -126,8 +126,8 @@
     align-items: center;
     gap: 12px;
     padding: 10px 16px;
-    background: oklch(14% 0.03 145 / 0.4);
-    border: 1px solid oklch(30% 0.08 145);
+    background: rgba(20, 38, 25, 0.4);
+    border: 1px solid rgb(50, 65, 52);
     margin-bottom: 24px;
     font-size: 12px;
   }
@@ -186,6 +186,7 @@
     opacity: 0.7;
   }
   .panel-title .refresh-btn:hover { opacity: 1; }
+  .panel-title .accent { color: var(--accent); }
 
   /* ── WIN RATE GAUGE ─────────────────────────────────── */
   .gauge-wrap { display: flex; align-items: center; gap: 24px; }
@@ -225,7 +226,7 @@
     justify-content: space-between;
     align-items: baseline;
     padding: 7px 0;
-    border-bottom: 1px solid oklch(25% 0.01 240);
+    border-bottom: 1px solid var(--border);
     font-size: 12px;
   }
   .stat-row:last-child { border-bottom: none; }
@@ -253,10 +254,10 @@
   }
   .trade-table td {
     padding: 7px 8px;
-    border-bottom: 1px solid oklch(20% 0.01 240);
+    border-bottom: 1px solid rgb(48, 51, 56);
   }
   .trade-table tr:last-child td { border-bottom: none; }
-  .trade-table tr:hover td { background: oklch(16% 0.01 240); }
+  .trade-table tr:hover td { background: rgb(37, 39, 43); }
   .dir-long { color: var(--accent); }
   .dir-short { color: var(--loss); }
   .pnl-pos { color: var(--accent); font-weight: 500; }
@@ -272,7 +273,7 @@
     align-items: center;
     gap: 10px;
     padding: 8px 0;
-    border-bottom: 1px solid oklch(20% 0.01 240);
+    border-bottom: 1px solid rgb(48, 51, 56);
     font-size: 12px;
   }
   .market-row:last-child { border-bottom: none; }
@@ -297,7 +298,7 @@
   .alert {
     padding: 10px 16px;
     border-left: 3px solid var(--warn);
-    background: oklch(14% 0.03 50 / 0.4);
+    background: rgba(38, 29, 15, 0.4);
     font-size: 11.5px;
     color: var(--muted);
     margin-bottom: 20px;
@@ -323,9 +324,9 @@
   }
   .comp-table td {
     padding: 7px 8px;
-    border-bottom: 1px solid oklch(20% 0.01 240);
+    border-bottom: 1px solid var(--border);
   }
-  .comp-table tr.highlight td { background: oklch(14% 0.04 145 / 0.4); }
+  .comp-table tr.highlight td { background: rgba(20, 38, 25, 0.4); }
   .comp-table tr:last-child td { border-bottom: none; }
   .comp-low-sample { color: var(--warn); font-size: 10px; }
 
@@ -339,7 +340,7 @@
     margin-top: 32px;
     letter-spacing: 0.05em;
   }
-  .footer a { color: oklch(55% 0.01 240); text-decoration: none; }
+  .footer a { color: rgb(118, 128, 141); text-decoration: none; }
 
   @media (max-width: 1100px) {
     .hero-strip { grid-template-columns: 1fr 1fr; }
@@ -352,6 +353,42 @@
     .hero-strip { grid-template-columns: 1fr 1fr; }
     .grid-3col  { grid-template-columns: 1fr; }
   }
+
+  #gauge-arc {
+    transition: stroke-dasharray 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* ── formerly inline styles ───────────────────────── */
+  #rank-note        { color: var(--muted); font-size: 11px; }
+
+  .bar-fill         { width: 0%; }
+
+  .gauge-extra      { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .stat-row-compact { border: none; padding: 3px 0; }
+
+  .panel-loading    { color: var(--muted); font-size: 11px; }
+  .open-loading     { color: var(--muted); font-size: 11px; padding: 8px 0; }
+
+  .panel--mb        { margin-bottom: 20px; }
+
+  .comp-muted       { color: var(--muted); }
+  .comp-accent      { color: var(--accent); }
+  .comp-accent-bold { color: var(--accent); font-weight: 700; }
+
+  #trade-count-label { color: var(--muted); font-size: 10px; text-transform: none; letter-spacing: 0; }
+
+  .table-scroll     { overflow-x: auto; }
+
+  .td-loading       { color: var(--muted); padding: 16px 8px; }
+
+  .footer-note      { margin-top: 6px; display: inline-block; opacity: 0.5; }
+
+  .bar-track--flush { margin: 0; }
+
+  .td-muted         { color: var(--muted); }
+  .td-warn          { color: var(--warn); }
+
+  .td-no-trades     { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -383,7 +420,7 @@
     <div class="rank-sep"></div>
     <div class="rank-stat">Win Rate <strong id="rank-wr">—</strong></div>
     <div class="rank-sep"></div>
-    <div class="rank-stat" id="rank-note" style="color:var(--muted);font-size:11px;">Loading on-chain data…</div>
+    <div class="rank-stat" id="rank-note">Loading on-chain data…</div>
   </div>
 
   <!-- ALERT -->
@@ -430,8 +467,8 @@
       <svg class="equity-chart" id="equity-svg" viewBox="0 0 600 140" preserveAspectRatio="none">
         <defs>
           <linearGradient id="fill-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="oklch(72% 0.19 145)" stop-opacity="0.25"/>
-            <stop offset="100%" stop-color="oklch(72% 0.19 145)" stop-opacity="0"/>
+            <stop offset="0%" stop-color="rgb(74, 185, 85)" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="rgb(74, 185, 85)" stop-opacity="0"/>
           </linearGradient>
         </defs>
         <path id="equity-fill" fill="url(#fill-grad)" d=""/>
@@ -450,8 +487,7 @@
             stroke-linecap="butt"
             stroke-dasharray="0 263.9"
             stroke-dashoffset="66"
-            transform="rotate(-90 55 55)"
-            style="transition: stroke-dasharray 1.4s cubic-bezier(0.16,1,0.3,1)"/>
+            transform="rotate(-90 55 55)"/>
           <text id="gauge-pct" x="55" y="55" text-anchor="middle" dominant-baseline="middle"
             fill="var(--accent)" font-family="Syne,sans-serif" font-size="17" font-weight="800">—</text>
           <text x="55" y="70" text-anchor="middle"
@@ -459,19 +495,19 @@
         </svg>
         <div class="gauge-stats">
           <div class="gauge-row g-wins">Wins <strong id="g-wins">—</strong></div>
-          <div class="bar-track"><div class="bar-fill green" id="bar-wins" style="width:0%"></div></div>
+          <div class="bar-track"><div class="bar-fill green" id="bar-wins"></div></div>
           <div class="gauge-row g-loss">Losses <strong id="g-loss">—</strong></div>
-          <div class="bar-track"><div class="bar-fill red" id="bar-loss" style="width:0%"></div></div>
-          <div style="margin-top:8px; border-top:1px solid var(--border); padding-top:8px;">
-            <div class="stat-row" style="border:none;padding:3px 0;">
+          <div class="bar-track"><div class="bar-fill red" id="bar-loss"></div></div>
+          <div class="gauge-extra">
+            <div class="stat-row stat-row-compact">
               <span class="stat-key">Avg win PnL</span>
               <span class="stat-val green" id="avg-win">—</span>
             </div>
-            <div class="stat-row" style="border:none;padding:3px 0;">
+            <div class="stat-row stat-row-compact">
               <span class="stat-key">Avg loss PnL</span>
               <span class="stat-val red" id="avg-loss">—</span>
             </div>
-            <div class="stat-row" style="border:none;padding:3px 0;">
+            <div class="stat-row stat-row-compact">
               <span class="stat-key">Profit factor</span>
               <span class="stat-val amber" id="profit-factor">—</span>
             </div>
@@ -498,20 +534,20 @@
     <div class="panel">
       <div class="panel-title">Market Breakdown</div>
       <div id="market-list">
-        <div style="color:var(--muted);font-size:11px;">Loading…</div>
+        <div class="panel-loading">Loading…</div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="panel-title">Open Positions <span id="open-count" style="color:var(--accent)">—</span></div>
+      <div class="panel-title">Open Positions <span id="open-count" class="accent">—</span></div>
       <div id="open-positions">
-        <div style="color:var(--muted);font-size:11px;">Fetching positions…</div>
+        <div class="panel-loading">Fetching positions…</div>
       </div>
     </div>
   </div>
 
   <!-- COMPETITION CONTEXT -->
-  <div class="panel" style="margin-bottom:20px;">
+  <div class="panel panel--mb">
     <div class="panel-title">Leaderboard Context — Why Sample Size Wins</div>
     <table class="comp-table">
       <thead>
@@ -525,39 +561,39 @@
       </thead>
       <tbody>
         <tr>
-          <td style="color:var(--muted)">#8</td>
+          <td class="comp-muted">#8</td>
           <td>250%</td>
           <td>1</td>
           <td>1 / 0</td>
           <td><span class="comp-low-sample">⚠ 1 trade — single lucky bet</span></td>
         </tr>
         <tr>
-          <td style="color:var(--muted)">#12</td>
+          <td class="comp-muted">#12</td>
           <td>326%</td>
           <td>6</td>
           <td>2 / 4</td>
           <td><span class="comp-low-sample">⚠ Net neg WR, outlier-driven</span></td>
         </tr>
         <tr>
-          <td style="color:var(--muted)">#21</td>
+          <td class="comp-muted">#21</td>
           <td>351%</td>
           <td>1</td>
           <td>1 / 0</td>
           <td><span class="comp-low-sample">⚠ 1 trade — statistically void</span></td>
         </tr>
         <tr>
-          <td style="color:var(--muted)">#79</td>
+          <td class="comp-muted">#79</td>
           <td>305%</td>
           <td>0</td>
           <td>0 / 0</td>
           <td><span class="comp-low-sample">⚠ Pending / unrecorded</span></td>
         </tr>
         <tr class="highlight">
-          <td style="color:var(--accent);font-weight:700;" id="comp-rank-cell">#—</td>
-          <td style="color:var(--accent)" id="comp-roi-cell">296.15%</td>
-          <td style="color:var(--accent)" id="comp-trades-cell">84</td>
-          <td style="color:var(--accent)" id="comp-wl-cell">75 / 9</td>
-          <td style="color:var(--accent)">✓ 84 trades · 89.3% WR · Statistically elite</td>
+          <td class="comp-accent-bold" id="comp-rank-cell">#—</td>
+          <td class="comp-accent" id="comp-roi-cell">296.15%</td>
+          <td class="comp-accent" id="comp-trades-cell">84</td>
+          <td class="comp-accent" id="comp-wl-cell">75 / 9</td>
+          <td class="comp-accent">✓ 84 trades · 89.3% WR · Statistically elite</td>
         </tr>
       </tbody>
     </table>
@@ -567,9 +603,9 @@
   <div class="panel">
     <div class="panel-title">
       Recent Closed Positions
-      <span style="color:var(--muted);font-size:10px;text-transform:none;letter-spacing:0;" id="trade-count-label">—</span>
+      <span id="trade-count-label">—</span>
     </div>
-    <div style="overflow-x:auto;">
+    <div class="table-scroll">
       <table class="trade-table">
         <thead>
           <tr>
@@ -585,7 +621,7 @@
           </tr>
         </thead>
         <tbody id="trade-tbody">
-          <tr><td colspan="9" style="color:var(--muted);padding:16px 8px;">Fetching closed positions from Arbitrum…</td></tr>
+          <tr><td colspan="9" class="td-loading">Fetching closed positions from Arbitrum…</td></tr>
         </tbody>
       </table>
     </div>
@@ -595,10 +631,10 @@
 
 <!-- FOOTER -->
 <footer class="footer">
-  Tracking wallet <a href="https://arbiscan.io/address/0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352" target="_blank">0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352</a>
+  Tracking wallet <a href="https://arbiscan.io/address/0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352" target="_blank" rel="noopener noreferrer">0xDC4EA35771eE89c6f27a765A5d3bfc302aEB8352</a>
   &nbsp;·&nbsp; Data source: GMX v2 Arbitrum REST API &nbsp;·&nbsp; Refreshes every 60s
   <br>
-  <span style="margin-top:6px;display:inline-block;opacity:0.5;">AlgoEdge Performance Dashboard — For investor presentation only</span>
+  <span class="footer-note">AlgoEdge Performance Dashboard — For investor presentation only</span>
 </footer>
 
 <script>
@@ -700,16 +736,16 @@ function render(data) {
   $('market-list').innerHTML = sorted.map(([sym,d]) => `
     <div class="market-row">
       <span class="mkt-name">${sym}</span>
-      <div class="bar-track" style="margin:0;">
+      <div class="bar-track bar-track--flush">
         <div class="bar-fill ${d.pnlUsd>=0?'green':'red'}" style="width:${Math.min(100,Math.abs(d.pnlUsd)/maxPnl*100)}%"></div>
       </div>
       <span class="mkt-num">${d.trades}T</span>
       <span class="mkt-pnl ${d.pnlUsd>=0?'pnl-pos':'pnl-neg'}">${d.pnlUsd>=0?'+':''}${fmtUsd(d.pnlUsd,0)}</span>
-    </div>`).join('') || '<div style="color:var(--muted);font-size:11px;">No data</div>';
+    </div>`).join('') || '<div class="panel-loading">No data</div>';
 
   // Open positions (GMX REST doesn't provide them directly — show placeholder)
   $('open-count').textContent = '—';
-  $('open-positions').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px 0;">Open position data via on-chain RPC (coming soon).</div>';
+  $('open-positions').innerHTML = '<div class="open-loading">Open position data via on-chain RPC (coming soon).</div>';
 
   // Trade table
   const trades = data.recentTrades || [];
@@ -717,17 +753,17 @@ function render(data) {
   $('trade-tbody').innerHTML = trades.map(t => {
     const troi = t.collUsd > 0 ? (t.pnlUsd / t.collUsd * 100) : 0;
     return `<tr>
-      <td style="color:var(--muted)">${timeAgo(t.timestamp)}</td>
+      <td class="td-muted">${timeAgo(t.timestamp)}</td>
       <td>${t.market}/USD</td>
       <td class="${t.isLong?'dir-long':'dir-short'}">${t.isLong?'LONG':'SHORT'}</td>
       <td>${fmtUsd(t.sizeUsd,0)}</td>
-      <td style="color:var(--warn)">${t.leverage > 0 ? fmt(t.leverage,1)+'x' : '—'}</td>
-      <td style="color:var(--muted)">${t.execPrice > 0 ? fmtUsd(t.execPrice,2) : '—'}</td>
-      <td style="color:var(--muted)">${fmtUsd(t.feesUsd,3)}</td>
+      <td class="td-warn">${t.leverage > 0 ? fmt(t.leverage,1)+'x' : '—'}</td>
+      <td class="td-muted">${t.execPrice > 0 ? fmtUsd(t.execPrice,2) : '—'}</td>
+      <td class="td-muted">${fmtUsd(t.feesUsd,3)}</td>
       <td class="${t.pnlUsd>=0?'pnl-pos':'pnl-neg'}">${t.pnlUsd>=0?'+':''}${fmtUsd(t.pnlUsd,2)}</td>
       <td class="${troi>=0?'pnl-pos':'pnl-neg'}">${troi>=0?'+':''}${fmt(troi,1)}%</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="9" style="color:var(--muted)">No trades found.</td></tr>';
+  }).join('') || '<tr><td colspan="9" class="td-no-trades">No trades found.</td></tr>';
 }
 
 // ═══════════════════════════════════════════════════════
