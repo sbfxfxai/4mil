@@ -1,45 +1,30 @@
-export const config = { runtime: 'edge' };
-
 const SUBGRAPH =
   'https://subgraph.satsuma-prod.com/3b2ced13c8d9/gmx/synthetics-arbitrum-stats/api';
 
-export default async function handler(req) {
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    });
+    return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  let body;
   try {
-    body = await req.text();
-  } catch {
-    return new Response('Bad Request', { status: 400 });
+    const upstream = await fetch(SUBGRAPH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+
+    const data = await upstream.json();
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(upstream.status).json(data);
+  } catch (err) {
+    return res.status(502).json({ error: 'Upstream fetch failed', detail: err.message });
   }
-
-  const upstream = await fetch(SUBGRAPH, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  });
-
-  const data = await upstream.text();
-
-  return new Response(data, {
-    status: upstream.status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-store',
-    },
-  });
 }
